@@ -47,3 +47,5 @@ Subvolume | Mountpoint
 - Shell: zsh.
 
 If you're not using ethernet, you might want to install [Network Manager](https://wiki.archlinux.org/title/NetworkManager) so you can use your WiFi after reboot.
+
+For more details about the installation, check [this guide](https://gist.github.com/meeas/b574e4bede396783b1898c90afa20a30) or the [Arch Wiki](https://wiki.archlinux.org/) pages on a specific topic (e.g. [Swap](https://wiki.archlinux.org/title/swap)).
