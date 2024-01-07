@@ -1,19 +1,34 @@
 #!/bin/bash -e
 
+# Device where system will be installed
 DEVICE='/dev/vda'
-DEVICE_PASSPHRASE='123'
-DMNAME='cryptroot'
 
-CLEAN_MOUNT_TARGET='/mnt/'
+# LUKS passphrase for unlocking the device
+DEVICE_PASSPHRASE='123'
+
+# Options to use when mounting btrfs subvolumes
+# will not be reflected in /etc/fstab unless genfstab takes care of it
 BTRFS_MOUNT_OPTIONS='compress=zstd:1,noatime,'
 
+# Device hostname
 HOSTNAME='debian'
+
+# User configuration
 USERNAME='user'
-
-ROOT_PASSWORD='123'
 USER_PASSWORD='123'
+ROOT_PASSWORD='123'
 
+# Debian branch (stable, testing, unstable or release name)
+# will be used with debootstrap and /etc/apt/sources.list
 DEBIAN_RELEASE='bookworm'
+
+# Where system will be mounted to be installed configured
+CLEAN_MOUNT_TARGET='/mnt/'
+
+# If you don't know what this is, don't mind changing it
+DMNAME='cryptroot'
+
+# --- Don't modify further if you don't wanna change the behaviour of the script
 
 before_chrooting() {
     echo -e '\nChecking internet connectivity...'
