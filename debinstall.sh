@@ -215,7 +215,7 @@ setup_bootloader() {
     local command="find /dev/disk/by-uuid -lname \"*/${device_basename}3\" -printf %f"
     local crypt_part_uuid=$(eval $command)
 
-    echo -e "cryptroot\tUUID=${crypt_part_uuid}\tnone\tluks" >> /etc/crypttab
+    echo -e "${dmname}\tUUID=${crypt_part_uuid}\tnone\tluks" >> /etc/crypttab
 
     apt install -y efibootmgr btrfs-progs grub-efi cryptsetup-initramfs
     sed -i "s|GRUB_CMDLINE_LINUX_DEFAULT=\"|&cryptdevice=UUID=${crypt_part_uuid}:${dmname} root=/dev/mapper/${dmname} |" /etc/default/grub
