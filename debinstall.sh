@@ -3,6 +3,9 @@
 # Device where system will be installed
 DEVICE='/dev/vda'
 
+# If you have an nvme, this might be /dev/nvme0n1p
+DEVICE_PARTITION_PREFIX='/dev/vda'
+
 # LUKS passphrase for unlocking the device
 DEVICE_PASSPHRASE='123'
 
@@ -20,7 +23,7 @@ ROOT_PASSWORD='123'
 
 # Debian branch (stable, testing, unstable or release name)
 # will be used with debootstrap and /etc/apt/sources.list
-DEBIAN_RELEASE='bookworm'
+DEBIAN_RELEASE='trixie'
 
 # Where system will be mounted to be installed configured
 CLEAN_MOUNT_TARGET='/mnt/'
@@ -37,16 +40,16 @@ before_chrooting() {
     check_required_packages
 
     echo -e '\n--- Partitioning drive...'
-    partition_drive "${DEVICE}" > /dev/null
+    partition_drive > /dev/null
 
     echo -e '\n--- Encrypting system partition...'
-    encrypt_drive "${DEVICE}" "${DEVICE_PASSPHRASE}" "${DMNAME}" > /dev/null
+    encrypt_drive > /dev/null
 
     echo -e '\n--- Creating btrfs subvolumes...'
-    create_subvolumes "/dev/mapper/${DMNAME}" "${CLEAN_MOUNT_TARGET}" > /dev/null
+    create_subvolumes > /dev/null
 
     echo -e '\n--- Mounting system...'
-    mount_system "${DEVICE}" "/dev/mapper/${DMNAME}" "${BTRFS_MOUNT_OPTIONS}" "${CLEAN_MOUNT_TARGET}" > /dev/null
+    mount_system > /dev/null
 
     echo -e '\n--- Debootstrap will be executed! ---'
     sleep 1
@@ -58,7 +61,7 @@ before_chrooting() {
     echo -e '\n--- Entering chroot environment...'
     cp $0 "${CLEAN_MOUNT_TARGET}"
     arch-chroot "${CLEAN_MOUNT_TARGET}" /debinstall.sh chroot
-    
+
     echo -e '\n--- Cleaning up and umounting system...'
     rm -f "/mnt/$0"
     umount -R "${CLEAN_MOUNT_TARGET}"
@@ -68,20 +71,20 @@ before_chrooting() {
 
 inside_chroot() {
     echo -e '\n--- Setting up hostname...'
-    setup_hostname "${HOSTNAME}" > /dev/null
+    setup_hostname > /dev/null
 
     echo -e '\n--- Updating mirrors...'
-    setup_mirrors "${DEBIAN_RELEASE}" > /dev/null
+    setup_mirrors > /dev/null
 
     echo -e '\n--- Installing kernel and firmware...'
     install_kernel
     install_firmware
 
     echo -e '\n--- Setting up users...'
-    setup_users "${ROOT_PASSWORD}" "${USERNAME}" "${USER_PASSWORD}" > /dev/null
+    setup_users > /dev/null
 
     echo -e '\n--- Setting up bootloader (GRUB)...'
-    setup_bootloader "${DEVICE}" "${DMNAME}"
+    setup_bootloader
 
     echo -e '\n--- Installing bootloader (GRUB)...'
     install_bootloader
@@ -91,15 +94,14 @@ inside_chroot() {
 
     echo
     read -p "--- You'll be prompted to configure timezone and locale (PRESS ENTER)" _
-
     su -lc "dpkg-reconfigure tzdata"
     su -lc "dpkg-reconfigure locales"
 }
 
 check_internet_connection() {
     if ! nc -zw1 google.com 443; then
-    echo "internet access is needed to run this script"
-    exit 1
+        echo "internet access is needed to run this script"
+        exit 1
     fi
 }
 
@@ -120,7 +122,7 @@ check_required_packages() {
     for u in ${required_packages[@]}; do
         if [ ! "$(command -v $u)" ]; then
             not_installed+=("$u")
-        fi  
+        fi
     done
 
     if [ "${#not_installed[@]}" -gt 0 ]; then
@@ -130,95 +132,78 @@ check_required_packages() {
 }
 
 partition_drive() {
-    local dev="$1"; shift
-    
-    for partition in $(ls ${dev}*); do
+    for partition in $(ls ${DEVICE_PARTITION_PREFIX}*); do
         if mount | grep -q "${partition}"; then
             umount "${partition}"
         fi
     done
 
-    # Partition 1: EFI, 500MB
-    # Partition 2: Ext4, 1G
-    # Partition 3: btrfs, remaining space
-    parted -s "${dev}" \
+    parted -s "${DEVICE}" \
         mklabel gpt \
         mkpart primary 1MiB 501MiB \
         set 1 esp on \
         mkpart primary 501MiB 1.5GiB \
         mkpart primary 1.5GiB 100%
-    
-    partprobe "${dev}"
 
-    mkfs.fat -I -F 32 "${dev}1"
-    mkfs.ext4 -F "${dev}2"
-    mkfs.btrfs -f "${dev}3"
+    partprobe "${DEVICE}"
+
+    mkfs.fat -I -F 32 "${DEVICE_PARTITION_PREFIX}1"
+    mkfs.ext4 -F "${DEVICE_PARTITION_PREFIX}2"
+    mkfs.btrfs -f "${DEVICE_PARTITION_PREFIX}3"
 }
 
 encrypt_drive() {
-    local dev="$1"; shift
-    local passphrase="$1"; shift
-    local dmname="$1"; shift
-
-    echo -en "${passphrase}" | cryptsetup luksFormat "${dev}3"
-    echo -en "${passphrase}" | cryptsetup luksOpen "${dev}3" "$dmname"
-
-    mkfs.btrfs -f "/dev/mapper/${dmname}"
+    echo -en "${DEVICE_PASSPHRASE}" | cryptsetup luksFormat "${DEVICE_PARTITION_PREFIX}3"
+    echo -en "${DEVICE_PASSPHRASE}" | cryptsetup luksOpen "${DEVICE_PARTITION_PREFIX}3" "${DMNAME}"
+    mkfs.btrfs -f "/dev/mapper/${DMNAME}"
 }
 
 create_subvolumes() {
-    local mapper="$1"; shift
-    local mount_target="$1"; shift
-
-    mount "${mapper}" "${mount_target}"
-    btrfs subvolume create "${mount_target}@"
-    btrfs subvolume create "${mount_target}@home"
-    btrfs subvolume create "${mount_target}@var"
-    btrfs subvolume create "${mount_target}@log"
-    umount "${mount_target}"
+    mount "/dev/mapper/${DMNAME}" "${CLEAN_MOUNT_TARGET}"
+    btrfs subvolume create "${CLEAN_MOUNT_TARGET}@"
+    btrfs subvolume create "${CLEAN_MOUNT_TARGET}@home"
+    btrfs subvolume create "${CLEAN_MOUNT_TARGET}@var"
+    btrfs subvolume create "${CLEAN_MOUNT_TARGET}@log"
+    btrfs subvolume create "${CLEAN_MOUNT_TARGET}@.snapshots"
+    btrfs subvolume create "${CLEAN_MOUNT_TARGET}@docker"
+    btrfs subvolume create "${CLEAN_MOUNT_TARGET}@mysql"
+    btrfs subvolume create "${CLEAN_MOUNT_TARGET}@pgsql"
+    btrfs subvolume create "${CLEAN_MOUNT_TARGET}@steam"
+    umount "${CLEAN_MOUNT_TARGET}"
 }
 
 mount_system() {
-    local device="$1"; shift
-    local mapper="$1"; shift
-    local btrfs_mount_options="$1"; shift
-    local mount_target="$1"; shift
-
-    mount -o "${btrfs_mount_options}subvol=@" "${mapper}" "${mount_target}"
-
-    mount --mkdir -o "${btrfs_mount_options}subvol=@home" "${mapper}" "${mount_target}home"
-    mount --mkdir -o "${btrfs_mount_options}subvol=@var" "${mapper}" "${mount_target}var"
-    mount --mkdir -o "${btrfs_mount_options}subvol=@log" "${mapper}" "${mount_target}var/log"
-
-    mount --mkdir "${device}2" "${mount_target}boot"
-    mount --mkdir "${device}1" "${mount_target}boot/efi"
+    mount -o "${BTRFS_MOUNT_OPTIONS}subvol=@" "/dev/mapper/${DMNAME}" "${CLEAN_MOUNT_TARGET}"
+    mount --mkdir -o "${BTRFS_MOUNT_OPTIONS}subvol=@home" "/dev/mapper/${DMNAME}" "${CLEAN_MOUNT_TARGET}home"
+    mount --mkdir -o "${BTRFS_MOUNT_OPTIONS}subvol=@var" "/dev/mapper/${DMNAME}" "${CLEAN_MOUNT_TARGET}var"
+    mount --mkdir -o "${BTRFS_MOUNT_OPTIONS}subvol=@log" "/dev/mapper/${DMNAME}" "${CLEAN_MOUNT_TARGET}var/log"
+    mount --mkdir -o "${BTRFS_MOUNT_OPTIONS}subvol=@.snapshots" "/dev/mapper/${DMNAME}" "${CLEAN_MOUNT_TARGET}.snapshots"
+    mount --mkdir -o "${BTRFS_MOUNT_OPTIONS}subvol=@docker" "/dev/mapper/${DMNAME}" "${CLEAN_MOUNT_TARGET}var/lib/docker"
+    mount --mkdir -o "${BTRFS_MOUNT_OPTIONS}subvol=@mysql" "/dev/mapper/${DMNAME}" "${CLEAN_MOUNT_TARGET}var/lib/mysql"
+    mount --mkdir -o "${BTRFS_MOUNT_OPTIONS}subvol=@pgsql" "/dev/mapper/${DMNAME}" "${CLEAN_MOUNT_TARGET}var/lib/pgsql"
+    mount --mkdir "${DEVICE_PARTITION_PREFIX}2" "${CLEAN_MOUNT_TARGET}boot"
+    mount --mkdir "${DEVICE_PARTITION_PREFIX}1" "${CLEAN_MOUNT_TARGET}boot/efi"
 }
 
 setup_hostname() {
-    local hostname="$1"; shift
-
-    echo "${hostname}" > /etc/hostname
-    echo "127.0.1.1 ${hostname}.localdomain ${hostname}" >> /etc/hosts
+    echo "${HOSTNAME}" > /etc/hostname
+    echo "127.0.1.1 ${HOSTNAME}.localdomain ${HOSTNAME}" >> /etc/hosts
 }
 
 setup_mirrors() {
-    local release="$1"; shift
-    echo "deb https://deb.debian.org/debian ${release} main contrib non-free non-free-firmware" > /etc/apt/sources.list
+    echo "deb https://deb.debian.org/debian ${DEBIAN_RELEASE} main contrib non-free non-free-firmware" > /etc/apt/sources.list
     apt update
 }
 
 setup_bootloader() {
-    local device="$1"; shift
-    local dmname="$1"; shift
-
-    local device_basename=$(basename ${device})
+    local device_basename=$(basename ${DEVICE_PARTITION_PREFIX})
     local command="find /dev/disk/by-uuid -lname \"*/${device_basename}3\" -printf %f"
     local crypt_part_uuid=$(eval $command)
 
-    echo -e "${dmname}\tUUID=${crypt_part_uuid}\tnone\tluks" >> /etc/crypttab
+    echo -e "${DMNAME}\tUUID=${crypt_part_uuid}\tnone\tluks" >> /etc/crypttab
 
     apt install -y efibootmgr btrfs-progs grub-efi cryptsetup-initramfs
-    sed -i "s|GRUB_CMDLINE_LINUX_DEFAULT=\"|&cryptdevice=UUID=${crypt_part_uuid}:${dmname} root=/dev/mapper/${dmname} |" /etc/default/grub
+    sed -i "s|GRUB_CMDLINE_LINUX_DEFAULT=\"|&cryptdevice=UUID=${crypt_part_uuid}:${DMNAME} root=/dev/mapper/${DMNAME} |" /etc/default/grub
 }
 
 install_bootloader() {
@@ -227,7 +212,7 @@ install_bootloader() {
 }
 
 install_kernel() {
-    apt install -y linux-image-amd64 linux-headers-amd64  
+    apt install -y linux-image-amd64 linux-headers-amd64
 }
 
 install_firmware() {
@@ -235,26 +220,21 @@ install_firmware() {
 }
 
 setup_users() {
-    local root_password="$1"; shift
-    local username="$1"; shift
-    local user_password="$1"; shift
-
-    echo -en "${root_password}\n${root_password}" | passwd
+    echo -en "${ROOT_PASSWORD}\n${ROOT_PASSWORD}" | passwd
 
     apt install -y zsh sudo
-    chsh -s $(which zsh)
-    su -lc "useradd -m ${username} -s $(which zsh)"
-    echo -en "${user_password}\n${user_password}" | passwd "${username}"
-    su -lc "usermod -aG sudo ${username}"
+    chsh -s "$(which zsh)"
+    su -lc "useradd -m ${USERNAME} -s $(which zsh)"
+    echo -en "${USER_PASSWORD}\n${USER_PASSWORD}" | passwd "${USERNAME}"
+    su -lc "usermod -aG sudo,video ${USERNAME}"
 }
 
 if [ "$EUID" -ne 0 ]; then
-  echo "this script must be run as root."
-  exit 1
+    echo "this script must be run as root."
+    exit 1
 fi
 
-if [ "$1" == "chroot" ]
-then
+if [ "$1" == "chroot" ]; then
     inside_chroot
 else
     before_chrooting
