@@ -40,9 +40,9 @@ Subvolume   | Mountpoint
 @var        | /var
 @log        | /var/log
 @.snapshots | /.snapshots
-@docker     | var/lib/docker
-@mysql      | var/lib/mysql
-@pgsql      | var/lib/pgsql
+@docker     | /var/lib/docker
+@mysql      | /var/lib/mysql
+@pgsql      | /var/lib/pgsql
 
 ## Repositories
 
