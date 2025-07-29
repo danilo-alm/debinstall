@@ -4,7 +4,7 @@ The default Debian installer doesn't allow you to use BTRFS and LUKS Disk Encryp
 
 # How to use it
 
-The script depends on `debootstrap` and arch-specific utilities such as `arch-chroot` and `genfstab`. Before running it, install `debootstrap` through your package manager and if you aren't on arch, install `arch-install-scripts`. The script was tested using [Arch Linux's ISO](https://archlinux.org/download/) on a virtual machine.
+The script depends on `debootstrap` and arch-specific utilities such as `arch-chroot` and `genfstab`. Before running it, install `debootstrap` through your package manager and if you aren't on arch, install `arch-install-scripts`. The script was tested using [Arch Linux's ISO](https://archlinux.org/download/) on a virtual machine and on "bare metal" (my current install).
 
 First, download the script:
 ```sh
@@ -29,7 +29,7 @@ Mount     | Size
 ----------|------------
 /boot/efi | 500MiB
 /boot     | 1GiB
-/         | Available space
+/         | Rest of available space
 
 ## Subvolumes
 
