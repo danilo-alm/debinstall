@@ -40,11 +40,16 @@ Subvolume | Mountpoint
 @var      | /var
 @log      | /var/log
 
+## Repositories
+
+Only the default repository will be added to `/etc/apt/sources.list`. You should add the security and updates repo as well if you're on stable.
+
 ## Aditional info
 
 - Non-free software will be enabled in setup_mirrors() and non-free firmware will be installed in instal_firmware();
 - Bootloader: GRUB (UEFI);
 - Shell: zsh.
+- Add the branch-updates and branch-security repos if on stable
 
 If you're not using ethernet, you might want to install [Network Manager](https://wiki.archlinux.org/title/NetworkManager) so you can use your WiFi after reboot.
 
