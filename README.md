@@ -33,12 +33,16 @@ Mount     | Size
 
 ## Subvolumes
 
-Subvolume | Mountpoint
-----------|-----------
-@         | /
-@home     | /home
-@var      | /var
-@log      | /var/log
+Subvolume   | Mountpoint
+------------|-------------
+@           | /
+@home       | /home
+@var        | /var
+@log        | /var/log
+@.snapshots | /.snapshots
+@docker     | var/lib/docker
+@mysql      | var/lib/mysql
+@pgsql      | var/lib/pgsql
 
 ## Repositories
 
